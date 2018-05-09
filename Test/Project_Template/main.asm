@@ -478,58 +478,274 @@ Clear ENDP
 ; and also the number of wrong and correct answers and the time taken
 ; takes the name of the unsolved file in eax and the solved in ebx
 ; the rest of the items taken in parameters
-; the name of the file to save in the board taken in edi
+; the name of the file to save in the board taken in edi "heya bt7t kol 7aga f buffer w tktb el buffer de f el file "
 ;----------------------------------------------------------------------------------
-Save PROC uses edx ebx eax ecx edi esi , Canswers:Byte , Wanswers:Byte , Buffer:PTR Byte ,Stime:Dword , ETime:Dword
+
+Save PROC uses edx ecx esi , Canswers:Byte , Wanswers:Byte , Buffer:PTR Byte 
+
+
 
       mov esi , Buffer
+
 	  add esi ,97
+
 	  add Canswers , '0'
+
 	  mov cl,Canswers
+
 	  mov [esi] , cl  ; saving the correct answer counter
+
 	  inc esi 
+
 	  add Wanswers ,'0'
+
 	  mov cl  , Wanswers
+
 	  mov [esi] , cl  ; saving the wrong answer counter
-	  mov edx , Etime
-	  sub edx , Stime
-	  inc esi
+
+
+
 	  mov ecx , 12
-	  L1:                  ; saving the unsolved file name
+
+	  inc esi
+
+	  mov eax , offset unsolvedboard
+
+	  L1:
+
 	  mov dl , [eax]
+
 	  mov [esi] , dl
+
+	  inc esi
+
 	  inc eax 
-	  inc esi
+
 	  Loop L1
-	  mov ecx ,19
-	  L2:                ; saving the solved file name
-	  mov dl , [ebx]
-	  mov [esi] , dl
-	  inc ebx 
+
+
+
+	  mov ecx , 19
+
 	  inc esi
+
+	  L2:
+
+	  mov dl , [ebx]
+
+	  mov [esi] , dl
+
+	  inc esi
+
+	  inc ebx
+
 	  Loop L2
 
-	  add eax , '0'
-	  mov [esi] , eax  ; saving time 
+
 
 	  mov edx , edi
+
 	  call CreateOutputFile 
+
 	  mov fileHandle,eax 
+
 	  ; Check for errors. 
+
 	  cmp eax, INVALID_HANDLE_VALUE  ; error found? 
+
 	  jne file_ok                    ; no: skip 
+
 	  jmp quit 
+
 	  file_ok:            
 
+
+
                                ; Write the buffer to the output file. 
+
 	  mov eax,fileHandle 
+
 	  mov edx, Buffer          ; the buffer should include the name of the solved and the unsolved file
+
 	  mov ecx,200
+
 	  call WriteToFile 
+
 	  call CloseFile                 ; Display the return value.
+
 	  quit :
+
 	  RET
-Save ENDP     
+
+Save ENDP   
+
+;---------------------------------------------
+
+;Reads the saved board 
+
+; gets the filename in edx 
+
+;---------------------------------------------------
+
+ReadSavedBoard PROC uses eax ecx esi edi  , Buffer:PTR Byte , Canswers:Dword , Wanswers:Dword
+
+       mov edx , offset output  
+
+	   call OpenInputFile
+
+       mov fileHandle,eax
+
+                                                    ; Check for errors
+
+       cmp eax,INVALID_HANDLE_VALUE                 ; error opening file?
+
+       jne file_ok                                  ; no: skip
+
+       jmp quit                                     ; and quit
+
+       file_ok:
+
+                                             ; Read the file into a buffer.
+
+       mov edx, offset userunsolved 
+
+       mov ecx,200
+
+       call ReadFromFile
+
+       jnc check_buffer_size                        ; error reading?
+
+
+
+       call WriteWindowsMsg
+
+       jmp close_file
+
+       check_buffer_size:
+
+	   call writedec
+
+	   call crlf
+
+       cmp eax, 200                     ; buffer large enough?
+
+       jnb buf_size_ok ; yes
+
+       jmp quit                                     ; and quit
+
+	   
+
+       buf_size_ok:
+
+       mov userunsolved[eax],0                            ; insert null terminator
+
+	   
+
+       close_file:                            
+
+       mov eax,fileHandle
+
+       call CloseFile
+
+
+
+	  mov ecx , 0
+
+	  mov esi ,offset  userunsolved
+
+	  add esi ,97
+
+	  mov cl , [esi]
+
+	  sub cl , '0'
+
+	  mov Canswers , ecx
+
+	  inc esi 
+
+	                                 ; saving the correct answer counter
+
+	  mov ecx , 0
+
+	  mov cl , [esi]
+
+	  sub cl , '0'
+
+	  mov Wanswers , ecx ; saving the wrong answer counter
+
+
+
+	  mov ecx , 12
+
+	  inc esi
+
+	  mov eax , offset unsolvedboard
+
+
+
+	  L1:
+
+	  mov dl , [esi]
+
+	  mov [eax] , dl
+
+	  inc esi
+
+	  inc eax
+
+	  Loop L1
+
+
+
+	  mov ecx , 19
+
+	  mov eax , offset solvedboard
+
+	  inc esi
+
+	  L2:
+
+	  mov dl , [esi]
+
+	  mov [eax] , dl
+
+	  inc esi
+
+	  inc eax
+
+	  Loop L2
+
+
+
+	  mov Buffer[97] , 0
+
+
+
+      mov edx , offset SolvedBoard
+
+	  Invoke ReadSolvedFile , ADDR Solved 
+
+	  mov edx , offset UnsolvedBoard 
+
+	  Invoke ReadUnSolvedFile , ADDR unsolved
+
+	  
+
+	  mov edi , offset userunsolved
+
+      mov esi ,offset unsolved
+
+      Call Display 
+
+	  
+
+
+
+       quit:
+
+       RET
+
+ReadSavedBoard ENDP
 main PROC
 
       
@@ -640,13 +856,15 @@ main PROC
 	  NotClear:
 	  cmp al , 3
 	  Jne NotSave
-	  mov eax , offset unSolvedBoard
-	  mov ebx ,offset SolvedBoard
-	  mov edi , offset OutPut
-	  Invoke Save , Ccount , Wcount , ADDR userunsolved ,StartTime , EndTime ; save the board
-	  mov edx ,offset str11
-	  mov al , 9
+	   mov eax , offset unSolvedBoard
 
+	  mov ebx ,offset SolvedBoard
+
+	  mov edi , offset OutPut
+
+	  Invoke Save , Ccount , Wcount , ADDR userunsolved  ; save the boardmov edx ,offset str11
+	  mov al , 9
+	  mov edx ,offset str11
 	  Call SetTextColor
 	  Call WriteString
 	  Call Crlf
@@ -681,8 +899,15 @@ main PROC
 	  Invoke TimeFunction , StartTime , EndTime
 	  Jmp Quit
 	  Saved:
+	  invoke GetTickCount
 
+	  mov StartTime , eax
 
+	  mov edx , offset Output
+
+	  Invoke ReadSavedBoard ,ADDR userunsolved , Ccount , Wcount
+
+	  Jmp Again
 	  Quit:
 	  mov al , 15
 	  Call SetTextColor
